@@ -24,7 +24,39 @@ class WebpackLoader:
     def load_assets(self):
         try:
             with open(self.config["STATS_FILE"], encoding="utf-8") as f:
-                return json.load(f)
+                old_stats = json.load(f)
+
+            # if status is not "done", v1 and v2 are equivalent
+            # if "assets" key is present, this is a v2 file
+            if old_stats['status'] != 'done' or 'assets' in old_stats:
+                return old_stats
+
+            # convert v1 webpack-stats to v2 webpack-stats
+            chunks = {}
+            assets = {}
+
+            for page, props in old_stats['chunks'].items():
+                for propset in props:
+                    filename = propset['name']
+                    if not filename.endswith('.js'):
+                        break
+
+                    if chunks.get(page, None) is None:
+                        chunks[page] = []
+
+                    chunks[page].append(filename)
+
+                    assets[filename] = {
+                        'name': filename,
+                        # 'publicPath': propset['path'].replace,
+                        'path': propset['path'],
+                    }
+
+            return {
+                'status': old_stats['status'],
+                'chunks': chunks,
+                'assets': assets,
+            }
         except IOError:
             raise IOError(
                 "Error reading {0}. Are you sure webpack has generated "
